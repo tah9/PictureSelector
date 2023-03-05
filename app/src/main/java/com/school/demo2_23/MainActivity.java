@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.gifdecoder.StandardGifDecoder;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.target.BitmapImageViewTarget;
 import com.google.gson.Gson;
@@ -50,7 +51,8 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<PcPathBean> imgPaths = new ArrayList<>();
     private long stime;
 
-    private void scanFolder(File rootFile) {
+    
+    private void scanFolder(@NonNull File rootFile) {
         // 不扫描应用缓存文件夹 .XXX
         if (rootFile.getPath().contains(".")) {
             return;
@@ -71,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
             if (file.getName().equals(".nomedia")) {
                 return;
             } else if (file.isDirectory()) {
+                Log.d(TAG, "scanFolder: "+file.getPath());
                 scanFolder(file);
             } else if (fileName.endsWith(".jpeg") || fileName.endsWith(".jpg") || fileName.endsWith(".png")
                     || fileName.endsWith(".webp") || fileName.endsWith(".gif")) {
@@ -111,8 +114,9 @@ public class MainActivity extends AppCompatActivity {
 //        Log.d(TAG, "nativeCallback: "+pcPathBeans.size());
         imgPaths.addAll(nativeList);
         imgPaths.sort((pcPathBean, t1) -> (int) (t1.time - pcPathBean.time));
-        Log.d(TAG, "nativeCallback: " + imgPaths.size());
+        Log.d(TAG, "nativeCallback: " + System.currentTimeMillis());
         runOnUiThread(() -> TestAdapter.notifyDataSetChanged());
+
 //        expendTime();
     }
 
@@ -160,6 +164,9 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setItemViewCacheSize(30);
 
 
+//        scanFolder(new File(Environment.getExternalStorageDirectory().getAbsolutePath()));
+//        Log.d(TAG, "scanFolder: "+imgFolders.size());
+//        Log.d(TAG, "scanFolder: "+imgPaths.size());
 //广度优先搜索
 //        getPicturePath();
 //        Log.d(TAG, "onCreate: "+imgPaths.size());
@@ -203,14 +210,6 @@ public class MainActivity extends AppCompatActivity {
 
     class TestAdapter extends RecyclerView.Adapter<ViewHolder> {
 
-//        @Override
-//        public void onViewRecycled(@NonNull ViewHolder holder) {
-//            super.onViewRecycled(holder);
-//            ImageView imageView = holder.pic;
-//            if (imageView != null) {
-//                Glide.with(context).clear(imageView);
-//            }
-//        }
 
         @NonNull
         @Override
@@ -219,13 +218,11 @@ public class MainActivity extends AppCompatActivity {
             ImageView pic = new ImageView(frameLayout.getContext());
             pic.setScaleType(ImageView.ScaleType.CENTER_CROP);
             frameLayout.addView(pic, -1, (int) (width / 3f));
-            Log.d(TAG, "onCreateViewHolder: ");
             return new ViewHolder(frameLayout);
         }
 
         @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            Log.d(TAG, "onBindViewHolder: " + position);
             PcPathBean pcPathBean = imgPaths.get(position);
             ImageView pic = holder.pic;
 //            Log.d(TAG, "onBindViewHolder: "+pcPathBean.path);
@@ -233,17 +230,9 @@ public class MainActivity extends AppCompatActivity {
                 /*
                 Glide加载gif机制是从bitmapPool获取新的bitmap对象，会创建很多bitmap占用内存
                  */
-                BitmapImageViewTarget bitmapImageViewTarget = new BitmapImageViewTarget(pic) {
-                    @Override
-                    protected void setResource(Bitmap resource) {
-                        BitmapDrawable drawable = new BitmapDrawable(resource);
-                        pic.setImageDrawable(drawable);
-                    }
-                };
                 Glide.with(holder.itemView).asBitmap().load(pcPathBean.getPath())
                         .skipMemoryCache(true)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE).into(bitmapImageViewTarget);
-                Log.d(TAG, "onBindViewHolder: " + pcPathBean.path);
+                        .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
             } else {
                 Glide.with(holder.itemView).load(pcPathBean.getPath())
                         .skipMemoryCache(true)
@@ -252,6 +241,7 @@ public class MainActivity extends AppCompatActivity {
 /*
 //                    .apply(new RequestOptions().override(200,200))*/
         }
+
 
         @Override
         public int getItemCount() {

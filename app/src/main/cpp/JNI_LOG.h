@@ -2,15 +2,15 @@
 // Created by tah9 on 2023/3/1.
 //
 
-#ifndef DEMO2_23_DEMO2_23_H
-#define DEMO2_23_DEMO2_23_H
+#ifndef JNI_LOG_H
+#define JNI_LOG_H
 #define __DEBUG__ANDROID__ON
 //write debug images
 #ifdef  __DEBUG__ANDROID__ON
 
 #include <android/log.h>
 // Define the LOGI and others for print debug infomation like the log.i in java
-#define LOG_TAG    "JNILOG"
+#define LOG_TAG    "JNI_LOG"
 //#undef LOG
 #define LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG, __VA_ARGS__)
 #define LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG, __VA_ARGS__)
@@ -33,4 +33,4 @@
 #endif
 #endif
 
-#endif //DEMO2_23_DEMO2_23_H
+#endif //DEMO2_23_DEMO_H
