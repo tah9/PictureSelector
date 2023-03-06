@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<PcPathBean> imgPaths = new ArrayList<>();
     private long stime;
 
-    
+
     private void scanFolder(@NonNull File rootFile) {
         // 不扫描应用缓存文件夹 .XXX
         if (rootFile.getPath().contains(".")) {
@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
             if (file.getName().equals(".nomedia")) {
                 return;
             } else if (file.isDirectory()) {
-                Log.d(TAG, "scanFolder: "+file.getPath());
+                Log.d(TAG, "scanFolder: " + file.getPath());
                 scanFolder(file);
             } else if (fileName.endsWith(".jpeg") || fileName.endsWith(".jpg") || fileName.endsWith(".png")
                     || fileName.endsWith(".webp") || fileName.endsWith(".gif")) {
@@ -104,18 +104,32 @@ public class MainActivity extends AppCompatActivity {
 
     public native void instanceNative();
 
+    int flag = 0;
 
     //native回调
     @RequiresApi(api = Build.VERSION_CODES.N)
     @SuppressLint("NotifyDataSetChanged")
     public void nativeCallback(ArrayList<PcPathBean> nativeList) {
+//        if (flag != 0)
+//            return;
+//        flag = 1;
 //        Log.d(TAG, "nativeCallback: "+imgPaths.hashCode());
 //        Log.d(TAG, "nativeCallback: "+pcPathBeans.hashCode());
 //        Log.d(TAG, "nativeCallback: "+pcPathBeans.size());
         imgPaths.addAll(nativeList);
-        imgPaths.sort((pcPathBean, t1) -> (int) (t1.time - pcPathBean.time));
-        Log.d(TAG, "nativeCallback: " + System.currentTimeMillis());
-        runOnUiThread(() -> TestAdapter.notifyDataSetChanged());
+//        imgPaths.sort((pcPathBean, t1) -> (int) (t1.time - pcPathBean.time));
+//        Log.d(TAG, "nativeCallback: " + System.currentTimeMillis());
+
+//        for (PcPathBean imgPath : imgPaths) {
+//            Log.d(TAG, "nativeCallback: " + imgPath);
+//        }
+        runOnUiThread(() -> {
+            for (int i = imgPaths.size()-nativeList.size(); i < imgPaths.size(); i++) {
+                TestAdapter.notifyItemInserted(i);
+            }
+//            TestAdapter.notifyDataSetChanged();
+            setTitle("" + imgPaths.size());
+        });
 
 //        expendTime();
     }
