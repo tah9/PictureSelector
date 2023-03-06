@@ -31,6 +31,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.target.BitmapImageViewTarget;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.school.demo2_23.adapter.TestAdapter;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        System.loadLibrary("demo2_23");
+        System.loadLibrary("scanner_pic");
     }
 
     public Context context = this;
@@ -50,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
 
     ArrayList<PcPathBean> imgPaths = new ArrayList<>();
     private long stime;
+    private GridLayoutManager gridLayoutManager;
 
 
     private void scanFolder(@NonNull File rootFile) {
@@ -116,17 +118,21 @@ public class MainActivity extends AppCompatActivity {
 //        Log.d(TAG, "nativeCallback: "+imgPaths.hashCode());
 //        Log.d(TAG, "nativeCallback: "+pcPathBeans.hashCode());
 //        Log.d(TAG, "nativeCallback: "+pcPathBeans.size());
-        imgPaths.addAll(nativeList);
+//        int s=imgPaths.size();
 //        imgPaths.sort((pcPathBean, t1) -> (int) (t1.time - pcPathBean.time));
 //        Log.d(TAG, "nativeCallback: " + System.currentTimeMillis());
 
-//        for (PcPathBean imgPath : imgPaths) {
-//            Log.d(TAG, "nativeCallback: " + imgPath);
-//        }
+        imgPaths.addAll(nativeList);
         runOnUiThread(() -> {
-            for (int i = imgPaths.size()-nativeList.size(); i < imgPaths.size(); i++) {
-                TestAdapter.notifyItemInserted(i);
-            }
+//            int first = gridLayoutManager.findFirstVisibleItemPosition();
+//            int last = gridLayoutManager.findLastVisibleItemPosition();
+//            Log.d(TAG, "nativeCallback: "+last);
+//            for (int i = imgPaths.size()-nativeList.size(); i <imgPaths.size() ; i++) {
+//                TestAdapter.notifyItemInserted(i);
+//            }
+
+            TestAdapter.notifyItemRangeInserted(
+                    imgPaths.size()-nativeList.size(), imgPaths.size());
 //            TestAdapter.notifyDataSetChanged();
             setTitle("" + imgPaths.size());
         });
@@ -162,15 +168,14 @@ public class MainActivity extends AppCompatActivity {
             System.exit(0);
         });
         instanceNative();
-        width = Tools.getWidth(context);
-
 //        setTitle("消耗时间: " + (etime - stime));
         initView();
 
 
         recyclerView.setHasFixedSize(true);
-        recyclerView.setLayoutManager(new GridLayoutManager(context, 3));
-        TestAdapter = new TestAdapter();
+        gridLayoutManager = new GridLayoutManager(context, 4);
+        recyclerView.setLayoutManager(gridLayoutManager);
+        TestAdapter = new TestAdapter(imgPaths,context);
         recyclerView.setAdapter(TestAdapter);
 //        String idPASideBase64 = FileUtils.getFileContent(new File("/sdcard/Gyt/idPASide.txt"));
 //        imgPaths = new Gson().fromJson(idPASideBase64, new TypeToken<ArrayList<PcPathBean>>() {
@@ -213,55 +218,6 @@ public class MainActivity extends AppCompatActivity {
 
     ArrayList<PcDirBean> imgFolders = new ArrayList<>();
 
-    static class ViewHolder extends RecyclerView.ViewHolder {
-        ImageView pic;
-
-        public ViewHolder(@NonNull View itemView) {
-            super(itemView);
-            this.pic = (ImageView) ((FrameLayout) itemView).getChildAt(0);
-        }
-    }
-
-    class TestAdapter extends RecyclerView.Adapter<ViewHolder> {
-
-
-        @NonNull
-        @Override
-        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            FrameLayout frameLayout = new FrameLayout(parent.getContext());
-            ImageView pic = new ImageView(frameLayout.getContext());
-            pic.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            frameLayout.addView(pic, -1, (int) (width / 3f));
-            return new ViewHolder(frameLayout);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-            PcPathBean pcPathBean = imgPaths.get(position);
-            ImageView pic = holder.pic;
-//            Log.d(TAG, "onBindViewHolder: "+pcPathBean.path);
-            if (pcPathBean.path.endsWith("gif")) {
-                /*
-                Glide加载gif机制是从bitmapPool获取新的bitmap对象，会创建很多bitmap占用内存
-                 */
-                Glide.with(holder.itemView).asBitmap().load(pcPathBean.getPath())
-                        .skipMemoryCache(true)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
-            } else {
-                Glide.with(holder.itemView).load(pcPathBean.getPath())
-                        .skipMemoryCache(true)
-                        .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
-            }
-/*
-//                    .apply(new RequestOptions().override(200,200))*/
-        }
-
-
-        @Override
-        public int getItemCount() {
-            return imgPaths.size();
-        }
-    }
 
     public List<PcDirBean> getPictureFolders() {
         List<PcDirBean> folders = new ArrayList<>();

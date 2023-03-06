@@ -3,233 +3,29 @@
 #include <vector>
 #include <dirent.h>
 #include <jni.h>
-#include <string>
 #include <list>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "FileClass/Scanner.cpp"
 
 using namespace std;
 
-#include "JNI_LOG.h"
 
 #include <ctime>
 
-#define CALLBACK_COUNT 5
 static jclass jcls;
 static jclass pc_cls;
 static jobject jobj;
 jmethodID jCallbackMid;
 jmethodID file_costruct;
 
-long int getMs() {
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    return tp.tv_sec * 1000 + tp.tv_usec / 1000;
-}
-
-class FileInfo {
-public:
-    string path;
-    long time;
-
-    FileInfo() {
-
-    };
-};
-
-
-class MMScanner {
-private:
-
-
-public:
-    JNIEnv *env;
-    FileInfo *fileList = new FileInfo[CALLBACK_COUNT];//开辟内存
-    int curFileIndex = 0;
-
-    void startScan(const string &rootPath);
-
-    void doCallback();
-
-    MMScanner(JNIEnv *v) {
-        env = v;
-    }
-
-    ~MMScanner() {
-        LOGI("~MMScanner()");
-    }
-};
 
 MMScanner *mmScanner = nullptr;
 
-//判断文件是否是图片（根据文件名后缀）
-int isPicture(string name) {
-    string ends[5] = {".jpg", ".png", ".jpeg", ".webp", ".gif"};
-    for (int i = 0; i < 5; i++) {
-        if (name.find(ends[i]) != string::npos) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-
-class Folder {
-public:
-    string name;//文件名名
-//    string path;//完整路径
-    string first_path;//第一张图片路径
-    long s_time;//排序时间
-    long m_time;//目录修改时间
-    vector<FileInfo> *pics = nullptr;
-
-    Folder() {
-
-    }
-
-    ~Folder() {
-        pics->shrink_to_fit();
-//        name= nullptr;
-//        first_path= nullptr;
-    }
-};
-
-int sortByPic(FileInfo f1, FileInfo f2) {
-    return f1.time < f2.time;
-}
-
-int sortByFolder(Folder f1, Folder f2) {
-    return f1.s_time < f2.s_time;
-}
-
-vector<Folder> v_folder;
-
-void MMScanner::startScan(const std::string &rootPath) {
-    long startTime = getMs();
-    LOGI("MMScanner::startScan time> %ld", startTime);
-    //创建目录向量
-    vector<string> mDirQueue;
-    mDirQueue.emplace_back(rootPath);
-    /**
-     * IO扫描目录（广度优先遍历），
-     * 创建临时向量保存图片，遇到nomedia清空向量并停止扫描。
-     * 该目录扫描结束按时间将临时向量排序，size>0 创建目录结构，将该目录压入目录向量。
-     */
-    while (!mDirQueue.empty()) {
-        std::string curDir = mDirQueue.back();
-        mDirQueue.pop_back();
-
-        DIR *dir = opendir(curDir.c_str());
-        if (dir == nullptr) {
-            continue;
-        }
-        //循环该目录下每个文件
-        struct dirent *dirp;
-        vector<FileInfo> *tempFileList = new vector<FileInfo>;
-        while ((dirp = readdir(dir)) != nullptr) {
-            //忽略文件目录中前两个文件.和..
-            if (strcmp(dirp->d_name, ".") == 0
-                || strcmp(dirp->d_name, "..") == 0) {
-                continue;
-            }
-
-                //目录内有.nomedia文件或目录，停止该循环
-            else if (strcmp(dirp->d_name, ".nomedia") == 0) {
-                tempFileList->clear();
-                break;
-            }
-
-
-            if (dirp->d_type == DT_DIR
-                //忽略带点的文件夹
-                && string(dirp->d_name).find(".gs") == string::npos
-                //忽略 Android目录
-                && strcmp(dirp->d_name, "Android") != 0
-                    ) {
-                //将目录压入deque
-                mDirQueue.emplace_back(curDir + "/" + dirp->d_name);
-
-            } else if (dirp->d_type == DT_REG
-                       && isPicture(dirp->d_name)) {
-                FileInfo fileInfo;
-                fileInfo.path = curDir + "/" + dirp->d_name;
-                struct stat fileStat;
-//                lstat(fileInfo.path.c_str(), &fileStat);
-                fstatat(dirfd(dir), dirp->d_name, &fileStat, 0);
-                fileInfo.time = fileStat.st_mtim.tv_sec;
-                tempFileList->emplace_back(fileInfo);
-            }
-        }
-        //该目录扫描完成
-        closedir(dir);
-
-        if (tempFileList->empty()) {
-            delete tempFileList;
-            continue;
-        }
-
-        std::sort(tempFileList->begin(), tempFileList->end(), sortByPic);
-        Folder folder;
-        FileInfo firstPic = tempFileList->back();
-        folder.pics = tempFileList;
-        folder.first_path = firstPic.path;
-        folder.name = curDir.substr(curDir.find_last_of('/') + 1);
-        folder.m_time = firstPic.time;
-        folder.s_time = folder.m_time;
-
-        v_folder.emplace_back(folder);
-
-    }
-
-
-//    for (const auto &item: v_folder){
-//        LOGI("目录 %s", item.name.c_str());
-//        LOGI("第一张 %s", item.first_path.c_str());
-//    }
-
-
-    /**
-     * 将目录向量按排序时间排序，
-     * 从目录向量弹出最后一个目录，取出最后一个向量（最新图片），填入图片数组，下标++，
-     * 修改该目录结构排序时间为（倒数第二个向量图片的修改时间）。
-     * 若目录的图片向量size==0，从目录向量内弹出该目录，将目录向量按排序时间排序，递归执行该操作。
-     */
-
-    LOGI("ScanOver time> %ld", getMs() - startTime);
-    int a = 0;
-//    return;
-    while (!v_folder.empty() && a == 0) {
-        std::sort(v_folder.begin(), v_folder.end(), sortByFolder);
-        Folder *folder = &v_folder.back();
-        vector<FileInfo> *pics = folder->pics;
-        fileList[curFileIndex++] = pics->back();
-        pics->pop_back();
-        if (pics->empty()) {
-            v_folder.pop_back();
-        } else {
-            folder->s_time = pics->back().time;
-        }
-        if (curFileIndex >= CALLBACK_COUNT) {
-            a = 1;
-            doCallback(); //这里把扫描到的文件信息回调到java层，500文件回调一次
-            LOGI("doback time> %ld", getMs());
-//                sleep(3);
-        }
-    }
-
-
-
-    //所有目录扫描完成，回调剩下的小部分文件，释放内存
-//    if (curFileIndex > 0) {
-//        doCallback();
-//    }
-    LOGI("startScanOver time> %ld", getMs());
-
-}
 
 void MMScanner::doCallback() {
-
+    LOGI("doCallback starttime> %ld", getMs());
     //获得ArrayList类引用，结束后释放
     jclass list_cls = env->FindClass("java/util/ArrayList");
 
@@ -245,15 +41,12 @@ void MMScanner::doCallback() {
     jmethodID list_add = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
 //    jmethodID list_clear = env->GetMethodID(list_cls, "clear", "()V");
 
-    //根据时间排序
-//    sort(imgVector.begin(), imgVector.end(), comp);
 
 //    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)), nullptr);
 //    jvm->AttachCurrentThread(&env, 0); //绑定当前线程，获取当前线程的JNIEnv
     FileInfo *info;
-    while (curFileIndex > 0) {
-
-        info = &fileList[--curFileIndex];
+    for (int i = 0; i < CALLBACK_COUNT; ++i) {
+        info = &fileList[i];
         jstring path = env->NewStringUTF(info->path.c_str());
         jlong time = info->time;
         //构造一个javabean文件对象
@@ -267,6 +60,7 @@ void MMScanner::doCallback() {
         env->DeleteLocalRef(path);
         env->DeleteLocalRef(java_PcBean);
     }
+    curFileIndex = 0;
 //
     //调用java回调方法
     env->CallVoidMethod(jobj, jCallbackMid, list_obj);
@@ -349,11 +143,14 @@ static int registerMethods(JNIEnv *env, const char *className,
     }
     return JNI_TRUE;
 }
+
 /**
  * 初始化回调所需方法，类，静态处理，防止GC回收
  * 在android ndk编程时，要使用到.so文件，so文件使用c语言编写的。当我在c文件中调用java类时，第一次调用时没问题的，但第二次调用的时候就失败了。上网搜了很多资料，大概原因是在jni中，使用指针指向某一个java对象的时候，由于android的垃圾回收机制（Garbage Collector)，如果java对象被回收的话，那么指针指向的对象就会为空或者不存在，从而提示JNI ERROR:accessed stale(陈旧的，落后的） local reference 大概的意思就是变量已经不存在了。所以要解决这个问题，就要求把java对象定义成静态的，这样可以避免被被回收（在Android4.0以后，静态变量也会被回收，但概率较小），从而导致错误的产生。
  */
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+JNIEXPORT jint
+
+JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     JNIEnv *env = NULL;
     if (vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
         return JNI_ERR;

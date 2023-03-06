@@ -31,7 +31,8 @@ android {
             // 在该文件种设置所要编写的c源码位置，以及编译后so文件的名字
             path "src/main/cpp/CMakeLists.txt"
             // cmake版本 可以省略
-//            version "3.10.2"
+//            version "3.18.1"
+
         }
     }
     ndkVersion '21.1.6352462'
