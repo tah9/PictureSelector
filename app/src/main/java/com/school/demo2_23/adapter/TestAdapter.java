@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -62,6 +63,8 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                     .skipMemoryCache(true)
                     .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
         }
+        holder.tip.setText(pcPathBean.getPath());
+
 /*
 //                    .apply(new RequestOptions().override(200,200))*/
     }
@@ -74,7 +77,7 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView pic;
-
+        TextView tip;
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
 //            FrameLayout frame = (FrameLayout) itemView;
@@ -84,6 +87,7 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
             this.pic = itemView.findViewById(R.id.pic);
             this.pic.getLayoutParams().width=width/4;
             this.pic.getLayoutParams().height=width/4;
+            this.tip = itemView.findViewById(R.id.tip);
         }
     }
 }

@@ -96,12 +96,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    void getPicturePath() {
-        File rootFile = Environment.getExternalStorageDirectory();
-        Log.d(TAG, "Environment.getExternalStorageDirectory(): " + rootFile.getAbsolutePath());
-        scanFolder(rootFile);
-    }
-
     public native void native_scan(String rootPath);
 
     public native void instanceNative();
@@ -132,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
 //            }
 
             TestAdapter.notifyItemRangeInserted(
-                    imgPaths.size()-nativeList.size(), imgPaths.size());
+                    imgPaths.size()-nativeList.size(), nativeList.size());
 //            TestAdapter.notifyDataSetChanged();
             setTitle("" + imgPaths.size());
         });
@@ -168,6 +162,10 @@ public class MainActivity extends AppCompatActivity {
             System.exit(0);
         });
         instanceNative();
+        //native后台扫描线程
+        new Thread(() ->
+                native_scan(Environment.getExternalStorageDirectory().getAbsolutePath()))
+                .start();
 //        setTitle("消耗时间: " + (etime - stime));
         initView();
 
@@ -200,10 +198,7 @@ public class MainActivity extends AppCompatActivity {
 //        Log.d(TAG, "pictureFolders.size= " + pictureFolders.size());
 
 
-        //native后台扫描线程
-        new Thread(() ->
-                native_scan(Environment.getExternalStorageDirectory().getAbsolutePath()))
-                .start();
+
 
 //        new Handler(getMainLooper()).postDelayed(new Runnable() {
 //            @Override

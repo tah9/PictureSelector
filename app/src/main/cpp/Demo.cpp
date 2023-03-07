@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "FileClass/Scanner.cpp"
+#include "unistd.h"
 
 using namespace std;
 
@@ -25,7 +26,6 @@ MMScanner *mmScanner = nullptr;
 
 
 void MMScanner::doCallback() {
-    LOGI("doCallback starttime> %ld", getMs());
     //获得ArrayList类引用，结束后释放
     jclass list_cls = env->FindClass("java/util/ArrayList");
 
@@ -45,7 +45,7 @@ void MMScanner::doCallback() {
 //    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)), nullptr);
 //    jvm->AttachCurrentThread(&env, 0); //绑定当前线程，获取当前线程的JNIEnv
     FileInfo *info;
-    for (int i = 0; i < CALLBACK_COUNT; ++i) {
+    for (int i = 0; i < curFileIndex; ++i) {
         info = &fileList[i];
         jstring path = env->NewStringUTF(info->path.c_str());
         jlong time = info->time;
@@ -67,12 +67,10 @@ void MMScanner::doCallback() {
     //释放局部引用
     env->DeleteLocalRef(list_cls);
     env->DeleteLocalRef(list_obj);
-
 //    LOGI("dobackEnd time> %ld",getMs());
 //    curFileIndex=0;
 
 //    jvm->DetachCurrentThread();
-
 }
 
 /**
@@ -83,9 +81,9 @@ void MMScanner::doCallback() {
  */
 void scan(JNIEnv *env, jobject thiz, jstring root_path) {
     // TODO: implement scan()
-    mmScanner = new MMScanner(env);
     auto path = env->GetStringUTFChars(root_path, nullptr);
-    mmScanner->startScan(path);
+    mmScanner = new MMScanner(env, path);
+
     //释放字符串，放入jstring和env创建的字符串
     env->ReleaseStringUTFChars(root_path, path);
 
@@ -94,13 +92,11 @@ void scan(JNIEnv *env, jobject thiz, jstring root_path) {
     env->DeleteGlobalRef(pc_cls);
 
     LOGI("Release");
-    LOGI("scanOver time> %ld", getMs());
 }
 
 
 void instanceJObj(JNIEnv *env, jobject thiz) {
-    LOGI("instanceJObj time> %ld", getMs());
-
+    LOGI("instanceJObj== time> %ld", getMs());
 
     jobj = env->NewGlobalRef(thiz);
     jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));

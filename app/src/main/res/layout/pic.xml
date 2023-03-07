@@ -4,9 +4,16 @@
     android:layout_height="wrap_content">
 
     <ImageView
-        android:padding="1dp"
         android:id="@+id/pic"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:padding="1dp"
         android:scaleType="centerCrop" />
+
+    <TextView
+        android:id="@+id/tip"
+        android:textSize="4sp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom" />
 </FrameLayout>
