@@ -11,7 +11,9 @@ public:
     string path;
     long time;
 
-    FileInfo() {
+    FileInfo() = default;
+
+    FileInfo(string p, long t) : path(p), time(t) {
 
     };
 };
@@ -25,8 +27,7 @@ public:
     long m_time;//目录修改时间
     vector<FileInfo> *pics = nullptr;
 
-    Folder() {
-    }
+    Folder() =default;
 
     ~Folder() {
         pics->shrink_to_fit();

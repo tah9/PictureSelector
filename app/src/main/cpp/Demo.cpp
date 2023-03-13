@@ -7,10 +7,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "FileClass/Scanner.cpp"
+#include "./FileClass/Scanner.cpp"
 #include "unistd.h"
-
-using namespace std;
+//#include <mutex>
+//using namespace std;
 
 
 #include <ctime>
@@ -18,45 +18,48 @@ using namespace std;
 static jclass jcls;
 static jclass pc_cls;
 static jobject jobj;
-jmethodID jCallbackMid;
-jmethodID file_costruct;
+static jmethodID jCallbackMid;
+static jmethodID file_costruct;
+static jclass list_cls;
+JNIEnv *env = nullptr;
+JavaVM *jvm = nullptr;
+//std::mutex mutex;
 
+void Scanner::doCallback() {
+    //Attach主线程
+    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)),
+                             nullptr);
+    jvm->AttachCurrentThread(&env, nullptr); //绑定当前线程，获取当前线程的JNIEnv
 
-MMScanner *mmScanner = nullptr;
-
-
-void MMScanner::doCallback() {
     //获得ArrayList类引用，结束后释放
-    jclass list_cls = env->FindClass("java/util/ArrayList");
-
+    list_cls = env->FindClass("java/util/ArrayList");
     if (list_cls == NULL) {
         cout << "listcls is null \n";
     }
     jmethodID list_costruct = env->GetMethodID(list_cls, "<init>", "()V"); //获得集合构造函数Id
-
-    //创建list局部引用，结束后释放
+//
+//    //创建list局部引用，结束后释放
     jobject list_obj = env->NewLocalRef(
             env->NewObject(list_cls, list_costruct)); //创建一个Arraylist集合对象
-    //或得Arraylist类中的 add()方法ID，其方法原型为： boolean add(Object object) ;
+//    //或得Arraylist类中的 add()方法ID，其方法原型为： boolean add(Object object) ;
     jmethodID list_add = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
 //    jmethodID list_clear = env->GetMethodID(list_cls, "clear", "()V");
 
-
-//    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)), nullptr);
-//    jvm->AttachCurrentThread(&env, 0); //绑定当前线程，获取当前线程的JNIEnv
     FileInfo *info;
     for (int i = 0; i < curFileIndex; ++i) {
         info = &fileList[i];
         jstring path = env->NewStringUTF(info->path.c_str());
         jlong time = info->time;
+//        LOGI("path %s",info->path.c_str());
+//        LOGI("time %ld",info->time);
         //构造一个javabean文件对象
         jobject java_PcBean = env->NewObject(pc_cls, file_costruct,
                                              path, time);
-
-        //执行Arraylist类实例的add方法，添加一个对象
+////
+////        //执行Arraylist类实例的add方法，添加一个对象
         env->CallBooleanMethod(list_obj, list_add, java_PcBean);
-
-        //释放局部引用
+////
+////        //释放局部引用
         env->DeleteLocalRef(path);
         env->DeleteLocalRef(java_PcBean);
     }
@@ -64,14 +67,15 @@ void MMScanner::doCallback() {
 //
     //调用java回调方法
     env->CallVoidMethod(jobj, jCallbackMid, list_obj);
-    //释放局部引用
+//    //释放局部引用
     env->DeleteLocalRef(list_cls);
     env->DeleteLocalRef(list_obj);
-//    LOGI("dobackEnd time> %ld",getMs());
-//    curFileIndex=0;
+
+
 
 //    jvm->DetachCurrentThread();
 }
+
 
 /**
  * 动态注册的方法一定要有  JNIEnv env, jobject thiz 两个参数
@@ -82,8 +86,7 @@ void MMScanner::doCallback() {
 void scan(JNIEnv *env, jobject thiz, jstring root_path) {
     // TODO: implement scan()
     auto path = env->GetStringUTFChars(root_path, nullptr);
-    mmScanner = new MMScanner(env, path);
-
+    Scanner scanner(path);
     //释放字符串，放入jstring和env创建的字符串
     env->ReleaseStringUTFChars(root_path, path);
 
@@ -92,12 +95,13 @@ void scan(JNIEnv *env, jobject thiz, jstring root_path) {
     env->DeleteGlobalRef(pc_cls);
 
     LOGI("Release");
+    JNI_OnUnload(jvm, nullptr);
 }
 
 
 void instanceJObj(JNIEnv *env, jobject thiz) {
     LOGI("instanceJObj== time> %ld", getMs());
-
+    ::env = env;
     jobj = env->NewGlobalRef(thiz);
     jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));
 //    jmethodID mainId = env->GetMethodID(jcls, "<init>", "()V");
@@ -114,6 +118,7 @@ void instanceJObj(JNIEnv *env, jobject thiz) {
 
     jmethodID instance_finish = env->GetMethodID(jcls, "instanceNative_finish", "()V");
     env->CallVoidMethod(jobj, instance_finish);
+
 }
 
 #define JNIREG_CLASS "com/school/demo2_23/MainActivity"  //Java类的路径：包名+类名
@@ -158,7 +163,7 @@ JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
         return JNI_ERR;
     }
     LOGI("JNI_OnLoad");
-
+    ::jvm = vm;
     return JNI_VERSION_1_6;
 }
 
