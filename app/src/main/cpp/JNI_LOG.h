@@ -1,13 +1,11 @@
 //
 // Created by tah9 on 2023/3/1.
 //
-
 #ifndef JNI_LOG_H
 #define JNI_LOG_H
 #define __DEBUG__ANDROID__ON
 //write debug images
 #ifdef  __DEBUG__ANDROID__ON
-
 #include <android/log.h>
 // Define the LOGI and others for print debug infomation like the log.i in java
 #define LOG_TAG    "JNI_LOG"

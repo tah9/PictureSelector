@@ -12,13 +12,19 @@
 #include <unistd.h>
 #include "./FileInfo.cpp"
 #include "../JNI_LOG.h"
-#include "./ThreadPool.cpp"
-#include "./fixed_thread_pool.cpp"
+#include <map>
+#include <memory>
+#include <algorithm>
+#include <execution>
+#include <chrono>
+#include <cstdint>
+//#include "./MSort.h"
+#include "./SimpleThreadPool.cpp"
 
-#define CALLBACK_COUNT 20
-
-typedef fixed_thread_pool fixed_thread_p;
+#define CALLBACK_COUNT 50
+const static string pic_extension[5] = {".jpg", ".png", ".jpeg", ".webp", ".gif"};
 using namespace std;
+std::vector<std::future<std::vector<FileInfo> *>> fs;
 
 long int getMs() {
     struct timeval tp;
@@ -27,49 +33,82 @@ long int getMs() {
 }
 
 //判断文件是否是图片（根据文件名后缀）
-int isPicture(string
-              name) {
-    string ends[5] = {".jpg", ".png", ".jpeg", ".webp", ".gif"};
-    for (
-            int i = 0;
-            i < 5; i++) {
-        if (name.
-                find(ends[i])
-            != string::npos) {
-            return 1;
-        }
-    }
-    return 0;
+int isPicture(string &&name) {
+    return name.find(pic_extension[0]) != std::string::npos
+           || name.find(pic_extension[1]) != std::string::npos
+           || name.find(pic_extension[2]) != std::string::npos
+           || name.find(pic_extension[3]) != std::string::npos
+           || name.find(pic_extension[4]) != std::string::npos;
 }
 
 int sortByPic(FileInfo f1, FileInfo f2) {
     return f1.time < f2.time;
 }
 
-int sortByFolder(Folder f1, Folder f2) {
-    return f1.s_time < f2.s_time;
-}
 
 vector<Folder> v_folder;
 fixed_thread_pool *pool = nullptr;
+vector<FileInfo> allFile;
+mutex *mx;
 
 
-/*
-    * 递归方法
-    * 进入方法，创建线程进行扫描。
-    * 扫描到目录，将目录路径放入该方法递归操作。
-    */
-/**
-     * IO扫描目录（广度优先遍历），
-     * 创建临时向量保存图片，遇到nomedia清空向量并停止扫描。
-     * 该目录扫描结束按时间将临时向量排序，size>0 创建目录结构，将该目录压入目录向量。
-     */
-void doScan(string path) {
-    string curDir = path;
-//    LOGI("curDir %s",curDir.c_str());
-    DIR *dir = opendir(curDir.c_str());
+void sort(__wrap_iter<FileInfo *> begin, __wrap_iter<FileInfo *> end, std::sort<__wrap_iter<FileInfo *>, std::sort> compare) {
+    short int numThread = pool->num_thread;
+    int siz = std::distance(begin, end);
+
+    //将siz均分为numThread个部分，分别排序
+    int basicFragSiz = siz / numThread;
+
+    //如果resiude>0,则把它们平摊到前residue个线程上
+    int residue = siz - basicFragSiz * numThread;
+
+    //确定开始多线程处理
+    //1 分片;
+    std::vector<std::pair<__wrap_iter<FileInfo *>, __wrap_iter<FileInfo *>>> prs(numThread);
+    for (int i = 0; i < numThread; ++i) {
+        prs[i].first = begin;
+        prs[i].second = begin + basicFragSiz + (residue-- > 0 ? 1 : 0);
+        begin = prs[i].second;
+    }
+
+    //2，异步处理
+    std::vector<std::future<void>> futures;
+    for (int i = 0; i < numThread; ++i) {
+        futures.emplace_back(std::move(pool->execute(std::sort<__wrap_iter<FileInfo *>, std::sort>,
+                                                     prs[i].first, prs[i].second,
+                                                     compare)));
+    }
+
+    //等待片段结束
+    for (int i = 0; i < numThread; ++i) {
+        futures[i].get();
+    }
+
+    //开始多线程归并
+    int k = (int) log2(numThread);
+    int d = 2;
+    for (int i = 0; i < k; ++i) {
+        std::vector<std::future<void>> tmpfutures;
+        for (int j = 0; j < numThread; j += d) {
+            auto start = prs[j].first;
+            auto end = prs[j + d - 1].second;
+            auto mid = prs[j + (d >> 1)].first;
+            tmpfutures.emplace_back(std::move(
+                    pool->execute(std::inplace_merge<_RandomIt, _Compare>, start, mid, end,
+                                  compare)));
+        }
+        for (int j = 0; j < numThread / d; ++j) {
+            tmpfutures[j].get();
+        }
+        d = d << 1;
+    }
+}
+
+
+std::vector<FileInfo> *doScan(const string &path) {
+    DIR *dir = opendir(path.c_str());
     if (dir == nullptr) {
-        return;
+        return nullptr;
     }
     //循环该目录下每个文件
     struct dirent *dirp;
@@ -83,52 +122,37 @@ void doScan(string path) {
 
             //目录内有.nomedia文件或目录，停止该循环
         else if (strcmp(dirp->d_name, ".nomedia") == 0) {
-            tempFileList->clear();
-            break;
+            delete tempFileList;
+            return nullptr;
         }
 
 
         if (dirp->d_type == DT_DIR
-            //忽略带点的文件夹
-            //                    && string(dirp->d_name).find(".gs") == string::npos
+            //忽略第一个字符是点的文件夹
             && dirp->d_name[0] != '.'
             //忽略 Android目录
-            && strcmp(dirp->d_name, "Android") != 0
-                ) {
-            //将目录压入deque
-//                mDirQueue.emplace_back(curDir + "/" + dirp->d_name);
-
-            string temp = curDir + "/" + dirp->d_name;
-            std::function<void()> scan = std::bind(doScan, temp);
-            pool->execute(scan);
-
+            && strcmp(dirp->d_name, "Android") != 0) {
+            string temp = path + "/" + dirp->d_name;
+            mx->lock();
+            fs.emplace_back(std::move(pool->execute(doScan, temp)));
+            mx->unlock();
         } else if (dirp->d_type == DT_REG
                    && isPicture(dirp->d_name)) {
             struct stat fileStat;
-//                lstat(fileInfo.path.c_str(), &fileStat);
-            fstatat(dirfd(dir), dirp->d_name, &fileStat, 0);
-            tempFileList->emplace_back(curDir + "/" + dirp->d_name,
-                                       fileStat.st_mtim.tv_sec);
+//                lstat((path + "/" + dirp->d_name).c_str(), &fileStat);
+            fstatat(dirfd(dir), dirp
+                    ->d_name, &fileStat, 0);
+            tempFileList->emplace_back(path + "/" + dirp->d_name, fileStat.st_mtim.tv_sec);
         }
     }
     //该目录扫描完成
     closedir(dir);
 
-    if (tempFileList->empty()) {
-//        tempFileList.shrink_to_fit();
-        return;
-    }
+    return tempFileList;
+//    mx->lock();
+//    allFile.insert(allFile.end(), tempFileList.begin(), tempFileList.end());
+//    mx->unlock();
 
-    std::sort(tempFileList->begin(), tempFileList->end(), sortByPic);
-    Folder folder;
-    FileInfo firstPic = tempFileList->back();
-    folder.pics = tempFileList;
-    folder.first_path = firstPic.path;
-    folder.name = curDir.substr(curDir.find_last_of('/') + 1);
-    folder.m_time = firstPic.time;
-    folder.s_time = folder.m_time;
-
-    v_folder.emplace_back(folder);
 }
 
 class Scanner {
@@ -144,32 +168,30 @@ public:
 
     Scanner(string path) {
         sysconf(0x0060);
+        mx = new mutex;
+        allFile.reserve(8080);
         long startTime = getMs();
         LOGI("scanFolder time> %ld", startTime);
-        int thread_size = std::thread::hardware_concurrency();
-        LOGI("hardware_concurrency %d", thread_size);
-
         startTime = getMs();
-        pool = new fixed_thread_pool(thread_size);
+        pool = new fixed_thread_pool();
 
-        std::function<void()> scan = std::bind(doScan, path);
-        pool->execute(scan);
-//        sleep(1);
-        pool->waitFinish();
+        fs.emplace_back(std::move(pool->execute(doScan, path)));
+        for (int i = 0; i < fs.size(); ++i) {
+            vector<FileInfo> *te = fs[i].get();
+            if (te)
+                allFile.insert(allFile.end(), te->begin(), te->end());
+        }
 
         LOGI("scanEnd spendTime%ld", getMs() - startTime);
-        LOGI("size %d",v_folder.size());
-
-//        v_folder;
         sortAndBack();
         LOGI("sortAndBack spendTime%ld", getMs() - startTime);
 
     }
 
     ~Scanner() {
-        LOGI("扫描类销毁");
-        delete pool;
+        delete mx;
         delete[] fileList;
+        LOGI("扫描类销毁");
     }
 
     void doCallback();
@@ -182,23 +204,20 @@ public:
    */
 
     void sortAndBack() {
-        while (!v_folder.empty()) {
-            std::sort(v_folder.begin(), v_folder.end(), sortByFolder);
-            Folder *folder = &v_folder.back();
-            vector<FileInfo> *pics = folder->pics;
-            fileList[curFileIndex++] = pics->back();
-            pics->pop_back();
-            if (pics->empty()) {
-                v_folder.pop_back();
-            } else {
-                folder->s_time = pics->back().time;
-            }
+        allFile.shrink_to_fit();
+        long start = getMs();
+        std::sort(allFile.begin(), allFile.end(), sortByPic);
+        LOGI("sort1 spendTime %ld", getMs() - start);
+        start = getMs();
+        ::sort(allFile.begin(), allFile.end(), sortByPic);
+        LOGI("sort2 spendTime %ld", getMs() - start);
+        for (auto it = allFile.rbegin();
+             it != allFile.rend(); it++) {
+            fileList[curFileIndex++] = *it;
             if (curFileIndex >= CALLBACK_COUNT) {
                 doCallback(); //这里把扫描到的文件信息回调到java层
-//                sleep(3);
             }
         }
-
         //所有目录扫描完成，回调剩下的小部分文件，释放内存
         if (curFileIndex > 0) {
             doCallback();
@@ -206,6 +225,3 @@ public:
     }
 };
 
-//void Scanner::sortAndBack() {
-//
-//}

@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <execution>
 #include "./FileClass/Scanner.cpp"
 #include "unistd.h"
 //#include <mutex>
@@ -111,7 +112,7 @@ void instanceJObj(JNIEnv *env, jobject thiz) {
     jCallbackMid = env->GetMethodID(jcls, "nativeCallback", "(Ljava/util/ArrayList;)V");
 
 
-    pc_cls = (jclass) (env->NewGlobalRef(
+    pc_cls = (jclass)(env->NewGlobalRef(
             env->FindClass("com/school/demo2_23/PcPathBean")));//获得类引用
     //获得该类型的构造函数  函数名为 <init> 返回类型必须为 void 即 V
     file_costruct = env->GetMethodID(pc_cls, "<init>", "(Ljava/lang/String;J)V");

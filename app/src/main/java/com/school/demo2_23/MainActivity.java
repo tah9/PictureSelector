@@ -106,32 +106,15 @@ public class MainActivity extends AppCompatActivity {
     @RequiresApi(api = Build.VERSION_CODES.N)
     @SuppressLint("NotifyDataSetChanged")
     public void nativeCallback(ArrayList<PcPathBean> nativeList) {
-//        if (flag != 0)
-//            return;
-//        flag = 1;
-//        Log.d(TAG, "nativeCallback: "+imgPaths.hashCode());
-//        Log.d(TAG, "nativeCallback: "+pcPathBeans.hashCode());
-//        Log.d(TAG, "nativeCallback: "+pcPathBeans.size());
-//        int s=imgPaths.size();
-//        imgPaths.sort((pcPathBean, t1) -> (int) (t1.time - pcPathBean.time));
-//        Log.d(TAG, "nativeCallback: " + System.currentTimeMillis());
-
         imgPaths.addAll(nativeList);
+        if (TestAdapter == null) {
+            return;
+        }
         runOnUiThread(() -> {
-//            int first = gridLayoutManager.findFirstVisibleItemPosition();
-//            int last = gridLayoutManager.findLastVisibleItemPosition();
-//            Log.d(TAG, "nativeCallback: "+last);
-//            for (int i = imgPaths.size()-nativeList.size(); i <imgPaths.size() ; i++) {
-//                TestAdapter.notifyItemInserted(i);
-//            }
-
             TestAdapter.notifyItemRangeInserted(
-                    imgPaths.size()-nativeList.size(), nativeList.size());
-//            TestAdapter.notifyDataSetChanged();
+                    imgPaths.size() - nativeList.size(), nativeList.size());
             setTitle("" + imgPaths.size());
         });
-
-//        expendTime();
     }
 
     void expendTime() {
@@ -143,6 +126,16 @@ public class MainActivity extends AppCompatActivity {
 
     public void instanceNative_finish() {
         Log.d(TAG, "instanceNative_finish ");
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        instanceNative();
+        //native后台扫描线程
+        new Thread(() ->
+                native_scan(Environment.getExternalStorageDirectory().getAbsolutePath()))
+                .start();
     }
 
     @RequiresApi(api = Build.VERSION_CODES.N)
@@ -161,20 +154,16 @@ public class MainActivity extends AppCompatActivity {
             mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 1000, restartIntent); // 1秒钟后重启应用
             System.exit(0);
         });
-        instanceNative();
-        //native后台扫描线程
-        new Thread(() ->
-                native_scan(Environment.getExternalStorageDirectory().getAbsolutePath()))
-                .start();
-//        setTitle("消耗时间: " + (etime - stime));
+
         initView();
 
 
         recyclerView.setHasFixedSize(true);
         gridLayoutManager = new GridLayoutManager(context, 4);
         recyclerView.setLayoutManager(gridLayoutManager);
-        TestAdapter = new TestAdapter(imgPaths,context);
+        TestAdapter = new TestAdapter(imgPaths, context);
         recyclerView.setAdapter(TestAdapter);
+        TestAdapter.notifyDataSetChanged();
 //        String idPASideBase64 = FileUtils.getFileContent(new File("/sdcard/Gyt/idPASide.txt"));
 //        imgPaths = new Gson().fromJson(idPASideBase64, new TypeToken<ArrayList<PcPathBean>>() {
 //        }.getType());
@@ -197,18 +186,6 @@ public class MainActivity extends AppCompatActivity {
 //        List<PcDirBean> pictureFolders = getPictureFolders();
 //        Log.d(TAG, "pictureFolders.size= " + pictureFolders.size());
 
-
-
-
-//        new Handler(getMainLooper()).postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                Gson gson=new Gson();
-//                String s = gson.toJson(imgPaths, new TypeToken<ArrayList<PcPathBean>>() {
-//                }.getType());
-//                FileUtils.writeTxtToFile(s, "/sdcard/Gyt/", "idPASide.txt");
-//            }
-//        },5000);
     }
 
     ArrayList<PcDirBean> imgFolders = new ArrayList<>();
@@ -252,25 +229,6 @@ public class MainActivity extends AppCompatActivity {
 
         return folders;
     }
-
-
-    /**
-     * 通过图片文件夹的路径获取该目录下的图片
-     */
-//    public ArrayList<PcPathBean> getImgListByDir(String dir) {
-//        ArrayList<PcPathBean> imgPaths = new ArrayList<>();
-//        File directory = new File(dir);
-//        if (!directory.exists()) {
-//            return imgPaths;
-//        }
-//        File[] files = directory.listFiles();
-//        for (File file : files) {
-//            String path = file.getAbsolutePath();
-//            if (checkIsImageFile(path)) {
-//            }
-//        }
-//        return imgPaths;
-//    }
 
     //检测图片
     public boolean checkIsImageFile(String name) {

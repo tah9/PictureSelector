@@ -13,7 +13,9 @@ ADD_LIBRARY(file-class SHARED ${DIR_LIB_SRCS})
 
 
 set(JNI_LIBS_DIR ${CMAKE_SOURCE_DIR}/../jniLibs)
-
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 -std=c++17 -fexceptions")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -std=c++17 -fexceptions -DNDEBUG")
 include_directories(${JNI_LIBS_DIR}/includes)
 
 
