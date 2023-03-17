@@ -7,17 +7,11 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -25,16 +19,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
-import com.bumptech.glide.gifdecoder.StandardGifDecoder;
-import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.request.target.BitmapImageViewTarget;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.school.demo2_23.adapter.TestAdapter;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
@@ -46,14 +36,16 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private RecyclerView recyclerView;
     private int width;
-    private TestAdapter TestAdapter;
-
+    private TestAdapter picAdapter;
+    private String rootPath=Environment.getExternalStorageDirectory().getAbsolutePath();
 
     ArrayList<PcPathBean> imgPaths = new ArrayList<>();
+    ArrayList<PcPathBean> conPaths = new ArrayList<>();
     private long stime;
     private GridLayoutManager gridLayoutManager;
 
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     private void scanFolder(@NonNull File rootFile) {
         // 不扫描应用缓存文件夹 .XXX
         if (rootFile.getPath().contains(".")) {
@@ -72,10 +64,12 @@ public class MainActivity extends AppCompatActivity {
             File file = fileArray[i];
             String fileName = file.getName();
             //不扫描声明了非媒体的文件夹 （含.nomedia文件的文件夹）
-            if (file.getName().equals(".nomedia")) {
+            if (fileName.equals(".nomedia")) {
                 return;
-            } else if (file.isDirectory()) {
-                Log.d(TAG, "scanFolder: " + file.getPath());
+            } else if (file.isDirectory()
+                    && fileName.charAt(0) != '.'
+                    && !fileName.equals("Android")) {
+//                Log.d(TAG, "scanFolder: " + file.getPath());
                 scanFolder(file);
             } else if (fileName.endsWith(".jpeg") || fileName.endsWith(".jpg") || fileName.endsWith(".png")
                     || fileName.endsWith(".webp") || fileName.endsWith(".gif")) {
@@ -87,18 +81,17 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         //扫描结束，添加目录和图片集
-        imgFolders.add(new PcDirBean(
-                rootFile.getAbsolutePath(),
-                tempList.get(0).getPath(),
-                rootFile.getName(),
-                tempList.size()));
+//        imgFolders.add(new PcDirBean(
+//                rootFile.getAbsolutePath(),
+//                tempList.get(0).getPath(),
+//                rootFile.getName(),
+//                tempList.size()));
         imgPaths.addAll(tempList);
 
     }
 
     public native void native_scan(String rootPath);
 
-    public native void instanceNative();
 
     int flag = 0;
 
@@ -107,11 +100,11 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("NotifyDataSetChanged")
     public void nativeCallback(ArrayList<PcPathBean> nativeList) {
         imgPaths.addAll(nativeList);
-        if (TestAdapter == null) {
+        if (picAdapter == null) {
             return;
         }
         runOnUiThread(() -> {
-            TestAdapter.notifyItemRangeInserted(
+            picAdapter.notifyItemRangeInserted(
                     imgPaths.size() - nativeList.size(), nativeList.size());
             setTitle("" + imgPaths.size());
         });
@@ -128,23 +121,17 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "instanceNative_finish ");
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        instanceNative();
-        //native后台扫描线程
-        new Thread(() ->
-                native_scan(Environment.getExternalStorageDirectory().getAbsolutePath()))
-                .start();
-    }
 
     @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        // 开始时间
-        stime = System.currentTimeMillis();
+        Log.d(TAG, "onCreate: " + System.currentTimeMillis());
+        //native后台扫描线程
+        new Thread(() ->native_scan(rootPath)).start();
+
+
         findViewById(R.id.btn).setOnClickListener(v -> {
             //app重新启动
             Intent intent = getPackageManager()
@@ -161,30 +148,40 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setHasFixedSize(true);
         gridLayoutManager = new GridLayoutManager(context, 4);
         recyclerView.setLayoutManager(gridLayoutManager);
-        TestAdapter = new TestAdapter(imgPaths, context);
-        recyclerView.setAdapter(TestAdapter);
-        TestAdapter.notifyDataSetChanged();
-//        String idPASideBase64 = FileUtils.getFileContent(new File("/sdcard/Gyt/idPASide.txt"));
-//        imgPaths = new Gson().fromJson(idPASideBase64, new TypeToken<ArrayList<PcPathBean>>() {
-//        }.getType());
+        picAdapter = new TestAdapter(imgPaths, context,rootPath);
+        recyclerView.setAdapter(picAdapter);
         recyclerView.setItemViewCacheSize(30);
 
+        // 开始时间
+        stime = System.currentTimeMillis();
 
+        //广搜
 //        scanFolder(new File(Environment.getExternalStorageDirectory().getAbsolutePath()));
-//        Log.d(TAG, "scanFolder: "+imgFolders.size());
-//        Log.d(TAG, "scanFolder: "+imgPaths.size());
-//广度优先搜索
-//        getPicturePath();
-//        Log.d(TAG, "onCreate: "+imgPaths.size());
-//        Log.d(TAG, "onCreate: imgFolders.size=" + imgFolders.size());
-//        Log.d(TAG, "onCreate: imgPaths.size=" + imgPaths.size());
-//        for (PcDirBean imgFolder : imgFolders) {
-//            Log.d(TAG, "onCreate: " + imgFolder);
-//        }
-
-
+////
+//
 //        List<PcDirBean> pictureFolders = getPictureFolders();
-//        Log.d(TAG, "pictureFolders.size= " + pictureFolders.size());
+////        Log.d(TAG, "pictureFolders.size= " + pictureFolders.size());
+//        Log.d(TAG, "pic.size= " + conPaths.size());
+////
+//        stime=System.currentTimeMillis();
+//        Collections.sort(conPaths, new Comparator<PcPathBean>() {
+//            @Override
+//            public int compare(PcPathBean pcPathBean, PcPathBean t1) {
+//                if (pcPathBean.time == t1.time) {
+//                    return 0;
+//                } else if (pcPathBean.time > t1.time) {
+//                    return -1;
+//                } else {
+//                    return 1;
+//                }
+//            }
+//        });
+//
+//        expendTime();
+//
+//        runOnUiThread(() -> {
+//            picAdapter.notifyDataSetChanged();
+//        });
 
     }
 
@@ -208,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
                 continue;
             String dir = parentFile.getAbsolutePath().toLowerCase();
             if (mDirs.contains(dir)) {//如果已经添加过
-                Log.d(TAG, "getPictureFolders: ");
                 continue;
             }
             mDirs.add(dir);//添加到保存目录的集合中
@@ -219,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
                 if (filename.endsWith(".jpeg") || filename.endsWith(".jpg") || filename.endsWith(".png")
                         || filename.endsWith(".webp") || filename.endsWith(".gif")) {
                     count++;
-                    imgPaths.add(new PcPathBean(file.getPath(), file.lastModified()));
+                    conPaths.add(new PcPathBean(file.getPath(), file.lastModified()));
                 }
             }
             folders.add(new PcDirBean(dir, path, parentFile.getName(), count));

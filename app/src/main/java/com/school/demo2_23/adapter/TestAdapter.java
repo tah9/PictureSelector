@@ -1,6 +1,7 @@
 package com.school.demo2_23.adapter;
 
 import android.content.Context;
+import android.os.Environment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,12 +28,14 @@ import java.util.ArrayList;
 public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
     private static final String TAG = "TestAdapter";
     private ArrayList<PcPathBean> imgPaths;
-
+    private static String rootPath;
 
     public static int width;
-    public TestAdapter(ArrayList<PcPathBean> imgPaths, Context context) {
+
+    public TestAdapter(ArrayList<PcPathBean> imgPaths, Context context, String path) {
         this.imgPaths = imgPaths;
         width = Tools.getWidth(context);
+        rootPath = path;
     }
 
     @NonNull
@@ -55,11 +58,11 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
                 /*
                 Glide加载gif机制是从bitmapPool获取新的bitmap对象，会创建很多bitmap占用内存
                  */
-            Glide.with(holder.itemView).asBitmap().load(pcPathBean.getPath())
+            Glide.with(holder.itemView).asBitmap().load(rootPath + pcPathBean.getPath())
                     .skipMemoryCache(true)
                     .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
         } else {
-            Glide.with(holder.itemView).load(pcPathBean.getPath())
+            Glide.with(holder.itemView).load(rootPath + pcPathBean.getPath())
                     .skipMemoryCache(true)
                     .diskCacheStrategy(DiskCacheStrategy.NONE).into(pic);
         }
@@ -78,6 +81,7 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
     public static class ViewHolder extends RecyclerView.ViewHolder {
         ImageView pic;
         TextView tip;
+
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
 //            FrameLayout frame = (FrameLayout) itemView;
@@ -85,8 +89,8 @@ public class TestAdapter extends RecyclerView.Adapter<TestAdapter.ViewHolder> {
 
 //            this.pic = (ImageView) ((FrameLayout) itemView).getChildAt(0);
             this.pic = itemView.findViewById(R.id.pic);
-            this.pic.getLayoutParams().width=width/4;
-            this.pic.getLayoutParams().height=width/4;
+            this.pic.getLayoutParams().width = width / 4;
+            this.pic.getLayoutParams().height = width / 4;
             this.tip = itemView.findViewById(R.id.tip);
         }
     }

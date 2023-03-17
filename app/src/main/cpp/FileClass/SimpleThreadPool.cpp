@@ -11,8 +11,11 @@ private:
     struct data {
         std::mutex mtx_;
         std::condition_variable cond_;
+        std::condition_variable main_cond_;
         bool is_shutdown_ = false;
         std::queue<std::function<void()>> tasks_;
+        short int unDoWorks = 0;
+//        std::atomic<int> unDoWorks = {0};
     };
     std::shared_ptr<data> data_;
 public:
@@ -34,6 +37,9 @@ public:
                         fun();
 
                         lk.lock();
+                        if (--data_->unDoWorks == 0) {
+                            data_->main_cond_.notify_one();
+                        }
                     } else if (data_->is_shutdown_) {
                         break;
                     } else {
@@ -58,13 +64,20 @@ public:
         printf("~fixed_thread_pool()");
     }
 
+    void waitFinish() {
+        //挂起主线程，等所有任务完成再回调。
+        std::unique_lock<std::mutex> lk(data_->mtx_);
+        data_->main_cond_.wait(lk, [this] { return data_->unDoWorks == 0; });
+    }
 
     template<class F, class... Args>
     auto execute(F &&fun, Args &&...args) -> std::future<decltype(fun(args...))> {
-        std::unique_lock<std::mutex> lk(data_->mtx_);
         std::function<decltype(fun(args...))()> b_fun = std::bind(std::forward<F>(fun),
                                                                   std::forward<Args>(args)...);
         auto share_task = std::make_shared<std::packaged_task<decltype(fun(args...))()>>(b_fun);
+
+        std::unique_lock<std::mutex> lk(data_->mtx_);
+        ++data_->unDoWorks;
         data_->tasks_.emplace([share_task] { (*share_task)(); });
         lk.unlock();
 

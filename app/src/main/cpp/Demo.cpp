@@ -28,9 +28,9 @@ JavaVM *jvm = nullptr;
 
 void Scanner::doCallback() {
     //Attach主线程
-    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)),
-                             nullptr);
-    jvm->AttachCurrentThread(&env, nullptr); //绑定当前线程，获取当前线程的JNIEnv
+//    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)),
+//                             nullptr);
+//    jvm->AttachCurrentThread(&env, nullptr); //绑定当前线程，获取当前线程的JNIEnv
 
     //获得ArrayList类引用，结束后释放
     list_cls = env->FindClass("java/util/ArrayList");
@@ -78,13 +78,35 @@ void Scanner::doCallback() {
 }
 
 
+void instanceJObj(JNIEnv *env,jobject thiz) {
+    LOGI("instanceJObj== time> %ld", getMs());
+    jobj = env->NewGlobalRef(thiz);
+    jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));
+//    jmethodID mainId = env->GetMethodID(jcls, "<init>", "()V");
+//    jobj = env->NewGlobalRef(env->NewObject(jcls, mainId));
+
+    //获取回调方法ID
+    jCallbackMid = env->GetMethodID(jcls, "nativeCallback", "(Ljava/util/ArrayList;)V");
+
+
+    pc_cls = (jclass) (env->NewGlobalRef(
+            env->FindClass("com/school/demo2_23/PcPathBean")));//获得类引用
+    //获得该类型的构造函数  函数名为 <init> 返回类型必须为 void 即 V
+    file_costruct = env->GetMethodID(pc_cls, "<init>", "(Ljava/lang/String;J)V");
+
+    jmethodID instance_finish = env->GetMethodID(jcls, "instanceNative_finish", "()V");
+    env->CallVoidMethod(jobj, instance_finish);
+
+}
+
+
 /**
  * 动态注册的方法一定要有  JNIEnv env, jobject thiz 两个参数
- * @param env
- * @param obj
- * @param root_path
  */
 void scan(JNIEnv *env, jobject thiz, jstring root_path) {
+    ::env = env;
+
+    instanceJObj(env,thiz);
     // TODO: implement scan()
     auto path = env->GetStringUTFChars(root_path, nullptr);
     Scanner scanner(path);
@@ -100,36 +122,13 @@ void scan(JNIEnv *env, jobject thiz, jstring root_path) {
 }
 
 
-void instanceJObj(JNIEnv *env, jobject thiz) {
-    LOGI("instanceJObj== time> %ld", getMs());
-    ::env = env;
-    jobj = env->NewGlobalRef(thiz);
-    jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));
-//    jmethodID mainId = env->GetMethodID(jcls, "<init>", "()V");
-//    jobj = env->NewGlobalRef(env->NewObject(jcls, mainId));
-
-    //获取回调方法ID
-    jCallbackMid = env->GetMethodID(jcls, "nativeCallback", "(Ljava/util/ArrayList;)V");
-
-
-    pc_cls = (jclass)(env->NewGlobalRef(
-            env->FindClass("com/school/demo2_23/PcPathBean")));//获得类引用
-    //获得该类型的构造函数  函数名为 <init> 返回类型必须为 void 即 V
-    file_costruct = env->GetMethodID(pc_cls, "<init>", "(Ljava/lang/String;J)V");
-
-    jmethodID instance_finish = env->GetMethodID(jcls, "instanceNative_finish", "()V");
-    env->CallVoidMethod(jobj, instance_finish);
-
-}
-
 #define JNIREG_CLASS "com/school/demo2_23/MainActivity"  //Java类的路径：包名+类名
 #define NUM_METHOES(x) ((int) (sizeof(x) / sizeof((x)[0]))) //获取方法的数量
 static JNINativeMethod method_table[] = {
         // 第一个参数a 是java native方法名，
         // 第二个参数 是native方法参数,括号里面是传入参的类型，外边的是返回值类型，
         // 第三个参数 是c/c++方法参数,括号里面是返回值类型，建议填void*
-        {"native_scan",    "(Ljava/lang/String;)V", (void *) scan},
-        {"instanceNative", "()V",                   (void *) instanceJObj},
+        {"native_scan", "(Ljava/lang/String;)V", (void *) scan}
 
 };
 
@@ -153,11 +152,12 @@ static int registerMethods(JNIEnv *env, const char *className,
 JNIEXPORT jint
 
 JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    LOGI("JNI_OnLoad== time> %ld", getMs());
     JNIEnv *env = NULL;
     if (vm->GetEnv((void **) &env, JNI_VERSION_1_6) != JNI_OK) {
         return JNI_ERR;
     }
-    assert(env != NULL);
+//    assert(env != NULL);
 
     // 注册native方法
     if (!registerMethods(env, JNIREG_CLASS, method_table, NUM_METHOES(method_table))) {
