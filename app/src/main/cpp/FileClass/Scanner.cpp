@@ -94,11 +94,8 @@ void doScan(const string &path) {
 //    std::sort(tempFileList.begin(), tempFileList.end(), sortByPic);
 
     mx.lock();
-//    long start = getMs();
     allFile.insert(allFile.end(), tempFileList.begin(), tempFileList.end());
-//    LOGI("insert spendTime%ld", getMs() - start);
     mx.unlock();
-
 }
 
 
@@ -148,7 +145,6 @@ public:
         std::partial_sort(allFile.begin(), allFile.begin() + topK, allFile.end(), sortByPic);
         doCallback(0, topK);
         LOGI("partial_sort_callback spendTime %ld", getMs() - start);
-
         start = getMs();
         LOGI("size %d", allFile.size());
         std::sort(allFile.begin() + topK, allFile.end(), sortByPic);

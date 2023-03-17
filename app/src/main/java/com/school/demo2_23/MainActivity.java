@@ -105,10 +105,13 @@ public class MainActivity extends AppCompatActivity {
         }
         runOnUiThread(() -> {
             setTitle("" + imgPaths.size());
-//            if (imgPaths.size() < gridLayoutManager.findLastVisibleItemPosition()) {
-//                picAdapter.notifyItemRangeInserted(
-//                        imgPaths.size() - nativeList.size(), nativeList.size());
-//                Log.d(TAG, "nativeCallback: "+gridLayoutManager.findLastVisibleItemPosition());
+            picAdapter.notifyItemRangeInserted(
+                    imgPaths.size() - nativeList.size(), nativeList.size());
+            picAdapter.notifyItemRangeChanged(
+                    imgPaths.size() - nativeList.size(), nativeList.size());
+//            if (-1 == gridLayoutManager.findLastVisibleItemPosition()) {
+//
+//                Log.d(TAG, "nativeCallback: " + gridLayoutManager.findLastVisibleItemPosition());
 //            }
         });
     }
@@ -149,12 +152,12 @@ public class MainActivity extends AppCompatActivity {
 
 
         recyclerView.setHasFixedSize(true);
+        recyclerView.setItemAnimator(null);
         gridLayoutManager = new GridLayoutManager(context, 4);
         recyclerView.setLayoutManager(gridLayoutManager);
         picAdapter = new TestAdapter(imgPaths, context, rootPath);
         recyclerView.setAdapter(picAdapter);
         recyclerView.setItemViewCacheSize(30);
-
         // 开始时间
         stime = System.currentTimeMillis();
 
