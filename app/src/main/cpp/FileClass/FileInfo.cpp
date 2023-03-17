@@ -15,6 +15,7 @@ public:
 
     FileInfo(string p, long t) : path(std::move(p)), time(t) {
     };
+
 };
 
 class Folder {

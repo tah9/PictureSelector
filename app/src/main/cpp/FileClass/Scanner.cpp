@@ -41,70 +41,15 @@ inline int isPicture(const string &name) {
 }
 
 inline int sortByPic(const FileInfo &f1, const FileInfo &f2) {
-    return f1.time < f2.time;
+    return f1.time > f2.time;
 }
 
 
 vector<Folder> v_folder;
-fixed_thread_pool *pool = nullptr;
+fixed_thread_pool pool;
 vector<FileInfo> allFile;
 mutex mx;
 
-inline void sortItem(const __wrap_iter<FileInfo *> &begin, const __wrap_iter<FileInfo *> &end) {
-    std::sort(begin, end, sortByPic);
-}
-
-inline void cellMerge(const __wrap_iter<FileInfo *> &begin, const __wrap_iter<FileInfo *> &mid,
-                      const __wrap_iter<FileInfo *> &end) {
-    std::inplace_merge(begin, mid, end, sortByPic);
-}
-
-void sortFile() {
-    short int numThread = pool->num_thread;
-    auto begin = allFile.begin();
-    auto end = allFile.end();
-    int siz = std::distance(begin, end);
-
-    //将siz均分为numThread个部分，分别排序
-    int basicFragSiz = siz / numThread;
-
-    //如果resiude>0,则把它们平摊到前residue个线程上
-    int residue = siz - basicFragSiz * numThread;
-
-    //确定开始多线程处理
-    //1 分片;
-    std::vector<std::pair<__wrap_iter<FileInfo *>, __wrap_iter<FileInfo *>>> prs(numThread);
-    for (int i = 0; i < numThread; ++i) {
-        auto &temp = prs[i];
-        temp.first = begin;
-        temp.second = begin + basicFragSiz + (residue-- > 0 ? 1 : 0);
-        begin = prs[i].second;
-    }
-
-    //2，异步处理
-    for (int i = 0; i < numThread; ++i) {
-        pool->execute(sortItem, prs[i].first, prs[i].second);
-    }
-    //等待片段结束
-    pool->waitFinish();
-
-    //开始多线程归并
-    int k = (int) log2(numThread);
-    int d = 2;
-    int sum = 0;
-    for (int i = 0; i < k; ++i) {
-        for (int j = 0; j < numThread; j += d) {
-            sum++;
-            auto &start = prs[j].first;
-            auto &last = prs[j + d - 1].second;
-            auto &mid = prs[j + (d >> 1)].first;
-            pool->execute(cellMerge, start, mid, last);
-        }
-        d = d << 1;
-        pool->waitFinish();
-    }
-    LOGI("sum %d", sum);
-}
 
 void doScan(const string &path) {
     DIR *dir = opendir(path.c_str());
@@ -123,7 +68,6 @@ void doScan(const string &path) {
 
             //目录内有.nomedia文件或目录，停止该循环
         else if (strcmp(dirp->d_name, ".nomedia") == 0) {
-            tempFileList.clear();
             return;
         }
 
@@ -133,19 +77,21 @@ void doScan(const string &path) {
             //忽略 Android目录
             && strcmp(dirp->d_name, "Android") != 0) {
             string temp = path + "/" + dirp->d_name;
-            pool->execute(doScan, temp);
+            pool.execute(doScan, temp);
         } else if (dirp->d_type == DT_REG
                    && isPicture(dirp->d_name)) {
             struct stat fileStat;
 //                lstat((path + "/" + dirp->d_name).c_str(), &fileStat);
             fstatat(dirfd(dir), dirp
                     ->d_name, &fileStat, 0);
-            tempFileList.emplace_back(path.substr(len_r_path, path.length() - len_r_path) + "/" + dirp->d_name, fileStat.st_mtim.tv_sec);
+            tempFileList.emplace_back(
+                    path.substr(len_r_path, path.length() - len_r_path) + "/" + dirp->d_name,
+                    fileStat.st_mtim.tv_sec);
         }
     }
     //该目录扫描完成
     closedir(dir);
-
+//    std::sort(tempFileList.begin(), tempFileList.end(), sortByPic);
 
     mx.lock();
 //    long start = getMs();
@@ -158,24 +104,16 @@ void doScan(const string &path) {
 
 class Scanner {
 
-private:
-    FileInfo fileList[CALLBACK_COUNT];//开辟内存
-
 public:
 
-    int curFileIndex = 0;
-    Scanner *m;
-
-
     Scanner(const string &path) {
-        len_r_path=path.length();
+        len_r_path = path.length();
         allFile.reserve((int) pow(2, 13));//预分配8192大小
         long startTime = getMs();
-        pool = new fixed_thread_pool();
         LOGI("createPool time> %ld", startTime);
         startTime = getMs();
-        pool->execute(doScan, path);
-        pool->waitFinish();
+        pool.execute(doScan, path);
+        pool.waitFinish();
         LOGI("scanEnd spendTime%ld", getMs() - startTime);
         sortAndBack();
     }
@@ -184,7 +122,7 @@ public:
         LOGI("扫描类销毁 %ld", getMs());
     }
 
-    void doCallback();
+    void doCallback(size_t left, size_t right);
 
     /**
    * 将目录向量按排序时间排序，
@@ -193,34 +131,37 @@ public:
    * 若目录的图片向量size==0，从目录向量内弹出该目录，将目录向量按排序时间排序，递归执行该操作。
    */
 
+    /* 对vector按时间从小到大排序
+     * 2023.3.7
+     */
     void sortAndBack() {
+
+
         allFile.shrink_to_fit();
         long start = getMs();
+        /*
+         * 在排序前先回调topK个，k是回调阈值，若集合小于k，不操作（0）
+         */
+        int topK = CALLBACK_COUNT > allFile.size() ? 0 : CALLBACK_COUNT;
+        LOGI("topK  %d", topK);
 
-        for (int i = 0; i < 4; ++i) {
-            allFile.insert(allFile.end(), allFile.begin(), allFile.end());
-        }
+        std::partial_sort(allFile.begin(), allFile.begin() + topK, allFile.end(), sortByPic);
+        doCallback(0, topK);
+        LOGI("partial_sort_callback spendTime %ld", getMs() - start);
 
-        LOGI("size %d", allFile.size());
-
-//        if(allFile.size()>(int)pow(2,14))
-//        sortFile();
-//        else
-        std::sort(allFile.begin(), allFile.end(), sortByPic);
-        LOGI("sort spendTime %ld", getMs() - start);
         start = getMs();
-        for (auto it = allFile.rbegin();
-             it != allFile.rend(); it++) {
-            fileList[curFileIndex++] = *it;
-            if (curFileIndex >= CALLBACK_COUNT) {
-                doCallback(); //这里把扫描到的文件信息回调到java层
+        LOGI("size %d", allFile.size());
+        std::sort(allFile.begin() + topK, allFile.end(), sortByPic);
+        LOGI("sort spendTime %ld", getMs() - start);
+        size_t num = 0, end = allFile.size() - allFile.size() % CALLBACK_COUNT;
+        for (size_t i = topK; i < end; ++i) {
+            if (++num >= CALLBACK_COUNT) {
+                doCallback(i - CALLBACK_COUNT, i);
+                num = 0;
             }
         }
-        //所有目录扫描完成，回调剩下的小部分文件，释放内存
-        if (curFileIndex > 0) {
-            doCallback();
-        }
-        LOGI("doCallback spendTime %ld", getMs() - start);
+        doCallback(end, allFile.size());
+        LOGI("last_callback spendTime %ld", getMs() - start);
     }
 };
 

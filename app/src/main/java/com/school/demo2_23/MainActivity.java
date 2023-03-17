@@ -37,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private int width;
     private TestAdapter picAdapter;
-    private String rootPath=Environment.getExternalStorageDirectory().getAbsolutePath();
+    private String rootPath = Environment.getExternalStorageDirectory().getAbsolutePath();
 
     ArrayList<PcPathBean> imgPaths = new ArrayList<>();
     ArrayList<PcPathBean> conPaths = new ArrayList<>();
@@ -104,9 +104,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         runOnUiThread(() -> {
-            picAdapter.notifyItemRangeInserted(
-                    imgPaths.size() - nativeList.size(), nativeList.size());
             setTitle("" + imgPaths.size());
+//            if (imgPaths.size() < gridLayoutManager.findLastVisibleItemPosition()) {
+//                picAdapter.notifyItemRangeInserted(
+//                        imgPaths.size() - nativeList.size(), nativeList.size());
+//                Log.d(TAG, "nativeCallback: "+gridLayoutManager.findLastVisibleItemPosition());
+//            }
         });
     }
 
@@ -129,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Log.d(TAG, "onCreate: " + System.currentTimeMillis());
         //native后台扫描线程
-        new Thread(() ->native_scan(rootPath)).start();
+        new Thread(() -> native_scan(rootPath)).start();
 
 
         findViewById(R.id.btn).setOnClickListener(v -> {
@@ -148,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
         recyclerView.setHasFixedSize(true);
         gridLayoutManager = new GridLayoutManager(context, 4);
         recyclerView.setLayoutManager(gridLayoutManager);
-        picAdapter = new TestAdapter(imgPaths, context,rootPath);
+        picAdapter = new TestAdapter(imgPaths, context, rootPath);
         recyclerView.setAdapter(picAdapter);
         recyclerView.setItemViewCacheSize(30);
 

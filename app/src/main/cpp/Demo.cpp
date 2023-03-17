@@ -26,7 +26,11 @@ JNIEnv *env = nullptr;
 JavaVM *jvm = nullptr;
 //std::mutex mutex;
 
-void Scanner::doCallback() {
+/*
+ * env包含java线程
+ */
+void Scanner::doCallback(size_t left, size_t right) {
+    if (right == 0) return;
     //Attach主线程
 //    jvm->AttachCurrentThread(reinterpret_cast<JNIEnv **>(reinterpret_cast<void **>(&env)),
 //                             nullptr);
@@ -34,7 +38,7 @@ void Scanner::doCallback() {
 
     //获得ArrayList类引用，结束后释放
     list_cls = env->FindClass("java/util/ArrayList");
-    if (list_cls == NULL) {
+    if (list_cls == nullptr) {
         cout << "listcls is null \n";
     }
     jmethodID list_costruct = env->GetMethodID(list_cls, "<init>", "()V"); //获得集合构造函数Id
@@ -42,43 +46,36 @@ void Scanner::doCallback() {
 //    //创建list局部引用，结束后释放
     jobject list_obj = env->NewLocalRef(
             env->NewObject(list_cls, list_costruct)); //创建一个Arraylist集合对象
-//    //或得Arraylist类中的 add()方法ID，其方法原型为： boolean add(Object object) ;
+    //或得Arraylist类中的 add()方法ID，其方法原型为： boolean add(Object object) ;
     jmethodID list_add = env->GetMethodID(list_cls, "add", "(Ljava/lang/Object;)Z");
-//    jmethodID list_clear = env->GetMethodID(list_cls, "clear", "()V");
 
-    FileInfo *info;
-    for (int i = 0; i < curFileIndex; ++i) {
-        info = &fileList[i];
-        jstring path = env->NewStringUTF(info->path.c_str());
-        jlong time = info->time;
-//        LOGI("path %s",info->path.c_str());
-//        LOGI("time %ld",info->time);
+    for (size_t i = left; i < right; ++i) {
+        auto &file = allFile[i];
+        jstring path = env->NewStringUTF(file.path.c_str());
+        jlong time = file.time;
         //构造一个javabean文件对象
         jobject java_PcBean = env->NewObject(pc_cls, file_costruct,
                                              path, time);
-////
-////        //执行Arraylist类实例的add方法，添加一个对象
+        //执行Arraylist类实例的add方法，添加一个对象
         env->CallBooleanMethod(list_obj, list_add, java_PcBean);
-////
-////        //释放局部引用
+
+        //释放局部引用
         env->DeleteLocalRef(path);
         env->DeleteLocalRef(java_PcBean);
     }
-    curFileIndex = 0;
-//
     //调用java回调方法
     env->CallVoidMethod(jobj, jCallbackMid, list_obj);
-//    //释放局部引用
+
+    //释放局部引用
     env->DeleteLocalRef(list_cls);
     env->DeleteLocalRef(list_obj);
-
 
 
 //    jvm->DetachCurrentThread();
 }
 
 
-void instanceJObj(JNIEnv *env,jobject thiz) {
+void instanceJObj(JNIEnv *env, jobject thiz) {
     LOGI("instanceJObj== time> %ld", getMs());
     jobj = env->NewGlobalRef(thiz);
     jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));
@@ -106,7 +103,7 @@ void instanceJObj(JNIEnv *env,jobject thiz) {
 void scan(JNIEnv *env, jobject thiz, jstring root_path) {
     ::env = env;
 
-    instanceJObj(env,thiz);
+    instanceJObj(env, thiz);
     // TODO: implement scan()
     auto path = env->GetStringUTFChars(root_path, nullptr);
     Scanner scanner(path);
