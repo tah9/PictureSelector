@@ -31,6 +31,7 @@ public:
     short int num_thread = (short int) std::thread::hardware_concurrency();
 
     explicit fixed_thread_pool() : data_(std::make_shared<data>()) {
+        LOGI("num_thread %d", num_thread);
         for (size_t i = 0; i < num_thread; ++i) {
             std::thread([this] {
 
@@ -54,6 +55,10 @@ public:
                     }
                 }
                 LOGI("线程关闭");
+                if (--num_thread == 0) {
+                    delete data_->mtx_;
+                    LOGI("删除锁");
+                }
             }).detach();
         }
     }

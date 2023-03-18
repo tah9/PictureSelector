@@ -18,7 +18,7 @@
 #include <execution>
 #include <chrono>
 #include <cstdint>
-#include "./SimpleThreadPool.cpp"
+#include "./SimpleThreadpool.cpp"
 
 #define CALLBACK_COUNT 50
 const static string pic_extension[5] = {".jpg", ".png", ".jpeg", ".webp", ".gif"};
@@ -46,7 +46,7 @@ inline int sortByPic(const FileInfo &f1, const FileInfo &f2) {
 
 
 vector<Folder> v_folder;
-fixed_thread_pool pool;
+fixed_thread_pool *pool;
 vector<FileInfo> allFile;
 mutex mx;
 
@@ -77,7 +77,7 @@ void doScan(const string &path) {
             //忽略 Android目录
             && strcmp(dirp->d_name, "Android") != 0) {
             string temp = path + "/" + dirp->d_name;
-            pool.execute(doScan, temp);
+            pool->execute(doScan, temp);
         } else if (dirp->d_type == DT_REG
                    && isPicture(dirp->d_name)) {
             struct stat fileStat;
@@ -105,19 +105,21 @@ public:
 
     Scanner(const string &path) {
         len_r_path = path.length();
+        LOGI("path >%s", path.c_str());
         allFile.reserve((int) pow(2, 13));//预分配8192大小
         long startTime = getMs();
         LOGI("createPool time> %ld", startTime);
         startTime = getMs();
-        pool.execute(doScan, path);
-        pool.waitFinish();
+        pool = new fixed_thread_pool();
+        pool->execute(doScan, path);
+        pool->waitFinish();
         LOGI("scanEnd spendTime%ld", getMs() - startTime);
         sortAndBack();
         allFile.resize(0);
     }
 
     ~Scanner() {
-        pool.~fixed_thread_pool();
+        delete pool;
         LOGI("扫描类销毁 %ld", getMs());
     }
 

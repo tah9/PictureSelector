@@ -21,7 +21,7 @@ add_library( # Sets the name of the library.
         SHARED
 
         # Provides a relative path to your source file(s).
-        Demo.cpp)
+        JniMethod.cpp)
 
 #添加子目录,将会调用子目录中的CMakeLists.txt
 #ADD_SUBDIRECTORY(FileClass)

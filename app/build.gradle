@@ -38,9 +38,8 @@ android {
         cmake {
             // 在该文件种设置所要编写的c源码位置，以及编译后so文件的名字
             path "src/main/cpp/CMakeLists.txt"
-            // cmake版本 可以省略
-//            version "3.18.1"
-
+            path file('src/main/cpp/CMakeLists.txt')
+            version "3.18.1"
         }
     }
     ndkVersion '23.2.8568313'
@@ -49,9 +48,8 @@ android {
 
 dependencies {
 
-    implementation 'com.github.bumptech.glide:glide:4.09.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
-    implementation 'jp.wasabeef:glide-transformations:4.3.0'
+    implementation 'com.github.bumptech.glide:glide:4.15.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.15.0'
 
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'androidx.appcompat:appcompat:1.5.1'

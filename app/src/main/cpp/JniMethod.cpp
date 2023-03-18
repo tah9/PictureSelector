@@ -10,7 +10,6 @@
 #include <execution>
 #include "./FileClass/Scanner.cpp"
 #include "unistd.h"
-//#include <mutex>
 //using namespace std;
 
 
@@ -78,7 +77,7 @@ void Scanner::doCallback(size_t left, size_t right) {
 void instanceJObj(JNIEnv *env, jobject thiz) {
     LOGI("instanceJObj== time> %ld", getMs());
     jobj = env->NewGlobalRef(thiz);
-    jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/MainActivity"));
+    jcls = (jclass) env->NewGlobalRef(env->FindClass("com/school/demo2_23/GalleryMain"));
 //    jmethodID mainId = env->GetMethodID(jcls, "<init>", "()V");
 //    jobj = env->NewGlobalRef(env->NewObject(jcls, mainId));
 
@@ -91,8 +90,18 @@ void instanceJObj(JNIEnv *env, jobject thiz) {
     //获得该类型的构造函数  函数名为 <init> 返回类型必须为 void 即 V
     file_costruct = env->GetMethodID(pc_cls, "<init>", "(Ljava/lang/String;J)V");
 
-    jmethodID instance_finish = env->GetMethodID(jcls, "instanceNative_finish", "()V");
-    env->CallVoidMethod(jobj, instance_finish);
+//
+//    std::vector<string*> *vs= new vector<string*>;
+//    for (int i = 0; i < 1024*500; ++i) {
+//        string *ss=new string[1024];
+//        for (int j = 0; j < 1024; ++j) {
+//            ss[j] = "dafjskllllllllllllllllllllllllllafsdjlkkk";
+//        }
+//        if(i%1024*100==0){
+//            sleep(3);
+//        }
+//        vs->push_back(ss);
+//    }
 
 }
 
@@ -119,7 +128,7 @@ void scan(JNIEnv *env, jobject thiz, jstring root_path) {
 }
 
 
-#define JNIREG_CLASS "com/school/demo2_23/MainActivity"  //Java类的路径：包名+类名
+#define JNIREG_CLASS "com/school/demo2_23/GalleryMain"  //Java类的路径：包名+类名
 #define NUM_METHOES(x) ((int) (sizeof(x) / sizeof((x)[0]))) //获取方法的数量
 static JNINativeMethod method_table[] = {
         // 第一个参数a 是java native方法名，
