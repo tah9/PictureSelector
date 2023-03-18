@@ -5,29 +5,36 @@
 #include <thread>
 #include <unistd.h>
 #include <future>
+#include "../JNI_LOG.h"
 
 class fixed_thread_pool {
 private:
     struct data {
-        std::mutex mtx_;
+        std::mutex *mtx_;
         std::condition_variable cond_;
         std::condition_variable main_cond_;
         bool is_shutdown_ = false;
         std::queue<std::function<void()>> tasks_;
         short int unDoWorks = 0;
 //        std::atomic<int> unDoWorks = {0};
+    public:
+        data() : mtx_(new std::mutex) {}
+
+        ~data() {
+            LOGI("~data");
+        }
     };
-    std::shared_ptr<data> data_;
+
 public:
+    std::shared_ptr<data> data_;
     //获取计算机支持的并发线程数量
     short int num_thread = (short int) std::thread::hardware_concurrency();
 
-    explicit fixed_thread_pool()
-            : data_(std::make_shared<data>()) {
+    explicit fixed_thread_pool() : data_(std::make_shared<data>()) {
         for (size_t i = 0; i < num_thread; ++i) {
             std::thread([this] {
 
-                std::unique_lock<std::mutex> lk(data_->mtx_);
+                std::unique_lock<std::mutex> lk(*data_->mtx_);
                 while (true) {
                     if (!data_->tasks_.empty()) {
                         auto fun = std::move(data_->tasks_.front());
@@ -46,7 +53,7 @@ public:
                         data_->cond_.wait(lk);
                     }
                 }
-
+                LOGI("线程关闭");
             }).detach();
         }
     }
@@ -54,19 +61,17 @@ public:
     fixed_thread_pool(fixed_thread_pool &&) = default;
 
     ~fixed_thread_pool() {
-        if ((bool) data_) {
-            {
-                std::lock_guard<std::mutex> lk(data_->mtx_);
-                data_->is_shutdown_ = true;
-            }
-            data_->cond_.notify_all();
+        {
+            std::lock_guard<std::mutex> lk(*data_->mtx_);
+            data_->is_shutdown_ = true;
         }
-        printf("~fixed_thread_pool()");
+        data_->cond_.notify_all();
+        LOGI("~fixed_thread_pool()");
     }
 
     void waitFinish() {
         //挂起主线程，等所有任务完成再回调。
-        std::unique_lock<std::mutex> lk(data_->mtx_);
+        std::unique_lock<std::mutex> lk(*data_->mtx_);
         data_->main_cond_.wait(lk, [this] { return data_->unDoWorks == 0; });
     }
 
@@ -76,12 +81,13 @@ public:
                                                                   std::forward<Args>(args)...);
         auto share_task = std::make_shared<std::packaged_task<decltype(fun(args...))()>>(b_fun);
 
-        std::unique_lock<std::mutex> lk(data_->mtx_);
-        ++data_->unDoWorks;
-        data_->tasks_.emplace([share_task] { (*share_task)(); });
-        lk.unlock();
-
+        {
+            std::lock_guard<std::mutex> lk(*data_->mtx_);
+            ++data_->unDoWorks;
+            data_->tasks_.emplace([share_task] { (*share_task)(); });
+        }
         data_->cond_.notify_one();
+
         return share_task->get_future();
     }
 };

@@ -8,7 +8,6 @@ cmake_minimum_required(VERSION 3.18.1)
 
 # Declares and names the project.
 
-project("scanner_pic")
 set(CMAKE_CXX_STANDARD 11)
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
@@ -16,7 +15,7 @@ set(CMAKE_CXX_STANDARD 11)
 # Gradle automatically packages shared libraries with your APK.
 
 add_library( # Sets the name of the library.
-        scanner_pic
+        my-native
 
         # Sets the library as a shared library.
         SHARED
@@ -25,8 +24,8 @@ add_library( # Sets the name of the library.
         Demo.cpp)
 
 #添加子目录,将会调用子目录中的CMakeLists.txt
-ADD_SUBDIRECTORY(FileClass)
-
+#ADD_SUBDIRECTORY(FileClass)
+include_directories(src/main/cpp/FileClass)
 # Searches for a specified prebuilt library and stores the path as a
 # variable. Because CMake includes system libraries in the search path by
 # default, you only need to specify the name of the public NDK library
@@ -45,7 +44,7 @@ find_library( # Sets the name of the path variable.
 # build script, prebuilt third-party libraries, or system libraries.
 
 target_link_libraries( # Specifies the target library.
-        scanner_pic
+        my-native
 
         # Links the target library to the log library
         # included in the NDK.

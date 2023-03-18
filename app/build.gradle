@@ -8,11 +8,15 @@ android {
     defaultConfig {
         applicationId "com.school.demo2_23"
         minSdk 21
+        //noinspection ExpiredTargetSdkVersion
         targetSdk 28
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk{
+            ldLibs "log"
+        }
     }
     buildTypes {
         release {
@@ -48,7 +52,6 @@ dependencies {
     implementation 'com.github.bumptech.glide:glide:4.09.0'
     annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
     implementation 'jp.wasabeef:glide-transformations:4.3.0'
-    annotationProcessor 'com.github.bumptech.glide:compiler:4.11.0'
 
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'androidx.appcompat:appcompat:1.5.1'

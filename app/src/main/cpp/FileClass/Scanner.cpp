@@ -113,9 +113,11 @@ public:
         pool.waitFinish();
         LOGI("scanEnd spendTime%ld", getMs() - startTime);
         sortAndBack();
+        allFile.resize(0);
     }
 
     ~Scanner() {
+        pool.~fixed_thread_pool();
         LOGI("扫描类销毁 %ld", getMs());
     }
 
