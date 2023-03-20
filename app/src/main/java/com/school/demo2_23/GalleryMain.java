@@ -57,10 +57,6 @@ public class GalleryMain extends AppCompatActivity {
         Log.d(TAG, "消耗时间: " + (etime - stime));
     }
 
-    public void instanceNative_finish() {
-        Log.d(TAG, "instanceNative_finish ");
-    }
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,16 +77,6 @@ public class GalleryMain extends AppCompatActivity {
     ArrayList<PcDirBean> imgFolders = new ArrayList<>();
 
     private void initView() {
-//        findViewById(R.id.btn).setOnClickListener(v -> {
-//            //app重新启动
-//            Intent intent = getPackageManager()
-//                    .getLaunchIntentForPackage(getApplication().getPackageName());
-//            PendingIntent restartIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, 0);
-//            AlarmManager mgr = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-//            mgr.set(AlarmManager.RTC, 0, restartIntent); // 0秒钟后重启应用
-//            System.exit(0);
-//        });
-
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setHasFixedSize(true);
         recyclerView.setItemAnimator(null);

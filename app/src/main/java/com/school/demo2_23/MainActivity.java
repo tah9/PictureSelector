@@ -1,7 +1,5 @@
 package com.school.demo2_23;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -11,21 +9,44 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.DefaultLifecycleObserver;
+import androidx.lifecycle.LifecycleOwner;
 
 import com.school.demo2_23.aidl.AidlServiceTest;
+
+class MainLifecycle implements DefaultLifecycleObserver {
+    private static final String TAG = "MainLifecycle";
+
+    @Override
+    public void onCreate(@NonNull LifecycleOwner owner) {
+        DefaultLifecycleObserver.super.onCreate(owner);
+        Log.d(TAG, "onCreate: ");
+    }
+
+    @Override
+    public void onStop(@NonNull LifecycleOwner owner) {
+        DefaultLifecycleObserver.super.onStop(owner);
+        Log.d(TAG, "onStop: ");
+    }
+}
 
 public class MainActivity extends AppCompatActivity {
     public Context context = this;
     private static final String TAG = "MainActivity";
+    private boolean bindService;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.act_main);
         initView();
+        getLifecycle().addObserver(new MainLifecycle());
 
     }
+
 
     @Override
     protected void onStop() {
@@ -34,15 +55,17 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "onStop: ");
 
         try {
-            unbindService(serviceConnection);
+            if (bindService) {
+                unbindService(serviceConnection);
+            }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            Log.d(TAG, "unbindService: " + e);
         }
     }
 
     private void setupService() {
         Intent intent = new Intent(context, AidlServiceTest.class);
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
+        bindService = bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
         startService(intent);
     }
 

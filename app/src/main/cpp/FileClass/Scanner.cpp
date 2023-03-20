@@ -1,28 +1,16 @@
 //
 // Created by tah9 on 2023/3/6.
 //
-#include <iostream>
-#include <utility>
-#include <vector>
-#include <dirent.h>
-#include <jni.h>
-#include <list>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include "./FileInfo.cpp"
-#include "../JNI_LOG.h"
-#include <map>
-#include <memory>
-#include <algorithm>
-#include <execution>
-#include <chrono>
-#include <cstdint>
-#include "./SimpleThreadpool.cpp"
+#include "./Scanner.h"
 
-#define CALLBACK_COUNT 50
-const static string pic_extension[5] = {".jpg", ".png", ".jpeg", ".webp", ".gif"};
 using namespace std;
+
+fixed_thread_pool *pool;
+std::mutex *mx;
+
+std::vector<FileInfo> allFile;
+std::vector<Folder> v_folder;
+
 unsigned int len_r_path;
 
 long int getMs() {
@@ -31,24 +19,9 @@ long int getMs() {
     return tp.tv_sec * 1000 + tp.tv_usec / 1000;
 }
 
-//判断文件是否是图片（根据文件名后缀）
-inline int isPicture(const string &name) {
-    if (name.length() < 5)return 0;
-    for (int i = 0; i < pic_extension->length(); ++i) {
-        if (name.rfind(pic_extension[i]) != std::string::npos) return 1;
-    }
-    return 0;
-}
-
 inline int sortByPic(const FileInfo &f1, const FileInfo &f2) {
     return f1.time > f2.time;
 }
-
-
-vector<Folder> v_folder;
-fixed_thread_pool *pool;
-vector<FileInfo> allFile;
-mutex mx;
 
 
 void doScan(const string &path) {
@@ -79,7 +52,7 @@ void doScan(const string &path) {
             string temp = path + "/" + dirp->d_name;
             pool->execute(doScan, temp);
         } else if (dirp->d_type == DT_REG
-                   && isPicture(dirp->d_name)) {
+                   && ets::isPicture(dirp->d_name)) {
             struct stat fileStat;
 //                lstat((path + "/" + dirp->d_name).c_str(), &fileStat);
             fstatat(dirfd(dir), dirp
@@ -93,75 +66,56 @@ void doScan(const string &path) {
     closedir(dir);
 //    std::sort(tempFileList.begin(), tempFileList.end(), sortByPic);
 
-    mx.lock();
+    mx->lock();
     allFile.insert(allFile.end(), tempFileList.begin(), tempFileList.end());
-    mx.unlock();
+    mx->unlock();
 }
 
+Scanner::Scanner(const string &path) {
+    len_r_path = path.length();
+    LOGI("path >%s", path.c_str());
+    allFile.reserve((int) pow(2, 13));//预分配8192大小
+    long startTime = getMs();
+    LOGI("createPool time> %ld", startTime);
+    startTime = getMs();
+    mx = new std::mutex;
+    pool = new fixed_thread_pool();
+    pool->execute(doScan, path);
+    pool->waitFinish();
+    LOGI("scanEnd spendTime%ld", getMs() - startTime);
+    sortAndBack();
+}
 
-class Scanner {
+Scanner::~Scanner() {
+    allFile.resize(0);
+    delete pool;
+    delete mx;
+    LOGI("扫描类销毁 %ld", getMs());
+}
 
-public:
-
-    Scanner(const string &path) {
-        len_r_path = path.length();
-        LOGI("path >%s", path.c_str());
-        allFile.reserve((int) pow(2, 13));//预分配8192大小
-        long startTime = getMs();
-        LOGI("createPool time> %ld", startTime);
-        startTime = getMs();
-        pool = new fixed_thread_pool();
-        pool->execute(doScan, path);
-        pool->waitFinish();
-        LOGI("scanEnd spendTime%ld", getMs() - startTime);
-        sortAndBack();
-        allFile.resize(0);
-    }
-
-    ~Scanner() {
-        delete pool;
-        LOGI("扫描类销毁 %ld", getMs());
-    }
-
-    void doCallback(size_t left, size_t right);
-
-    /**
-   * 将目录向量按排序时间排序，
-   * 从目录向量弹出最后一个目录，取出最后一个向量（最新图片），填入图片数组，下标++，
-   * 修改该目录结构排序时间为（倒数第二个向量图片的修改时间）。
-   * 若目录的图片向量size==0，从目录向量内弹出该目录，将目录向量按排序时间排序，递归执行该操作。
-   */
-
-    /* 对vector按时间从小到大排序
-     * 2023.3.7
+void Scanner::sortAndBack() {
+    allFile.shrink_to_fit();
+    long start = getMs();
+    /*
+     * 在排序前先回调topK个，k是回调阈值，若集合小于k，不操作（0）
      */
-    void sortAndBack() {
+    int topK = CALLBACK_COUNT > allFile.size() ? 0 : CALLBACK_COUNT;
+    LOGI("topK  %d", topK);
 
-
-        allFile.shrink_to_fit();
-        long start = getMs();
-        /*
-         * 在排序前先回调topK个，k是回调阈值，若集合小于k，不操作（0）
-         */
-        int topK = CALLBACK_COUNT > allFile.size() ? 0 : CALLBACK_COUNT;
-        LOGI("topK  %d", topK);
-
-        std::partial_sort(allFile.begin(), allFile.begin() + topK, allFile.end(), sortByPic);
-        doCallback(0, topK);
-        LOGI("partial_sort_callback spendTime %ld", getMs() - start);
-        start = getMs();
-        LOGI("size %d", allFile.size());
-        std::sort(allFile.begin() + topK, allFile.end(), sortByPic);
-        LOGI("sort spendTime %ld", getMs() - start);
-        size_t num = 0, end = allFile.size() - allFile.size() % CALLBACK_COUNT;
-        for (size_t i = topK; i < end; ++i) {
-            if (++num >= CALLBACK_COUNT) {
-                doCallback(i - CALLBACK_COUNT, i);
-                num = 0;
-            }
+    std::partial_sort(allFile.begin(), allFile.begin() + topK, allFile.end(), sortByPic);
+    doCallback(0, topK);
+    LOGI("partial_sort_callback spendTime %ld", getMs() - start);
+    start = getMs();
+    LOGI("size %d", allFile.size());
+    std::sort(allFile.begin() + topK, allFile.end(), sortByPic);
+    LOGI("sort spendTime %ld", getMs() - start);
+    size_t num = 0, end = allFile.size() - allFile.size() % CALLBACK_COUNT;
+    for (size_t i = topK; i < end; ++i) {
+        if (++num >= CALLBACK_COUNT) {
+            doCallback(i - CALLBACK_COUNT, i);
+            num = 0;
         }
-        doCallback(end, allFile.size());
-        LOGI("last_callback spendTime %ld", getMs() - start);
     }
-};
-
+    doCallback(end, allFile.size());
+    LOGI("last_callback spendTime %ld", getMs() - start);
+}
